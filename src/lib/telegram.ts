@@ -493,6 +493,30 @@ export async function setTelegramWebhook(
   return data?.result ?? true;
 }
 
+export async function setTelegramBotCommands(
+  botToken: string,
+  config?: Partial<TelegramConfig>
+): Promise<void> {
+  const commands: { command: string; description: string }[] = [
+    { command: 'bind', description: '绑定账号' },
+    { command: 'status', description: '查看绑定状态' },
+    { command: 'help', description: '显示帮助' },
+    { command: 'register', description: '注册并绑定账号' },
+  ];
+
+  const response = await fetchTelegramApi(
+    'setMyCommands',
+    botToken,
+    { commands },
+    config
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Telegram 命令设置失败: ${response.status} ${errorText}`);
+  }
+}
+
 export async function sendTelegramMessage(
   chatId: string,
   text: string,
@@ -600,15 +624,16 @@ function parseMessageText(update: any) {
 }
 
 function buildTelegramHelpText(config: TelegramConfig) {
-  return [
+  const commands: string[] = [
     'MoonTVPlus Telegram Bot 已连接。',
     '',
     '可用命令：',
     config.registrationEnabled ? '/register 用户名 密码 - 注册并绑定账号' : '',
     '/bind 绑定码 - 绑定账号',
     '/status - 查看状态',
-    '/unbind - 解除绑定',
-  ].filter(Boolean).join('\n');
+    '/help - 显示帮助',
+  ];
+  return commands.filter(Boolean).join('\n');
 }
 
 export async function handleTelegramWebhookUpdate(update: any): Promise<void> {
@@ -665,15 +690,14 @@ export async function handleTelegramWebhookUpdate(update: any): Promise<void> {
       return;
     }
 
-    if (/^\/unbind$/i.test(parsed.text)) {
-      const ok = await unbindTelegramUser(parsed.telegramUserId);
-      await sendTelegramMessage(parsed.chatId, ok ? '已解除 Telegram 绑定。' : '当前 Telegram 账号尚未绑定。');
-      return;
-    }
-
     if (/^\/status$/i.test(parsed.text)) {
       const binding = await getTelegramBindingByTelegramUser(parsed.telegramUserId);
       await sendTelegramMessage(parsed.chatId, binding ? `已绑定账号：${binding.username}\n通知：${binding.notificationsEnabled ? '开启' : '关闭'}` : '当前 Telegram 账号尚未绑定。');
+      return;
+    }
+
+    if (/^\/help$/i.test(parsed.text)) {
+      await sendTelegramMessage(parsed.chatId, buildTelegramHelpText(await getTelegramConfig()));
       return;
     }
 
@@ -687,7 +711,7 @@ export async function handleTelegramWebhookUpdate(update: any): Promise<void> {
     const data = String(callback.data);
     const confirmMatch = data.match(/^tg_login_confirm:(.+)$/);
     const denyMatch = data.match(/^tg_login_deny:(.+)$/);
-
+    
     if (confirmMatch) {
       try {
         await confirmTelegramLogin(confirmMatch[1], telegramUserId);

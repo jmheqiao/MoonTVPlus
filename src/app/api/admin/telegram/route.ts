@@ -4,7 +4,7 @@ import type { AdminConfig } from '@/lib/admin.types';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { getStorage } from '@/lib/db';
-import { getTelegramConfig, sendTelegramMessage, setTelegramWebhook, TelegramApiError } from '@/lib/telegram';
+import { getTelegramConfig, sendTelegramMessage, setTelegramBotCommands, setTelegramWebhook, TelegramApiError } from '@/lib/telegram';
 
 export const runtime = 'nodejs';
 
@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
         apiProxy,
         apiBaseUrl,
       });
+      await setTelegramBotCommands(botToken, { apiProxy, apiBaseUrl });
       return NextResponse.json({ success: true, message: 'Webhook 设置成功', result });
     } catch (error) {
       if (error instanceof TelegramApiError) {
